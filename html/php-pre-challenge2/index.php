@@ -7,8 +7,8 @@ echo "</pre>";
 
  /**
   * クイックソートする
-  *@param 配列 $array
-  *@return 配列 $result
+  *@param array $array
+  *@return array $result
   */
 function quicksort($array) {
     if (count($array) <= 1) {
@@ -33,4 +33,4 @@ echo "</pre>";
 // // 修正はここから
 // // for ($i = 0; $i < count($array); $i++) {
 // // // 修正はここまで
-?>
+
