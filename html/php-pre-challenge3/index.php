@@ -21,7 +21,7 @@ try {
     $db = array_column($result, 'value');
     $dbArray = array_map('intval', $db);
     //動的計画法。何通りかを求める。
-    function Dp($dbArray)
+    function dp($dbArray)
     {
         $limit = $_GET['target'];
         $limitInt = (int) $limit;
@@ -45,7 +45,7 @@ try {
         }
         return $array;
     }
-    $dp = Dp($dbArray);
+    $dp = dp($dbArray);
     //動的計画法から復元する。
     function reverse($dbArray, $dp, $i, $j, $k, $tmp, &$answer)
     {
