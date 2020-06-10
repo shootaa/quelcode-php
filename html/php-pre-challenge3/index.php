@@ -5,15 +5,14 @@ try {
     $dbuser = 'test';
     $dbpassword = 'test';
     $dbh = new PDO($dsn, $dbuser, $dbpassword);
-    //結果を配列に変換
     $limit = $_GET['target'];
-    $limitInt = (int) $limit;
     //リクエストが不正の場合の処理
     if ($limit < 1 | !ctype_digit($limit)) {
         http_response_code(400);
         echo 'Bad Request';
         exit();
     }
+    $limitInt = (int) $limit;
     //SQL実行小さい順
     $sql = 'SELECT value FROM prechallenge3 ORDER BY value  ASC';
     $stmt = $dbh->query($sql);
