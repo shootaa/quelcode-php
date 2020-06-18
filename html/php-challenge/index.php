@@ -108,8 +108,44 @@ if (isset($_REQUEST['rt'])) {
 
 //いいね機能
 
+$likeMessages = $db->prepare('SELECT post_id FROM likes WHERE member_id=?');
+$likeMessages->execute(array(
+	$_SESSION['id']
+));
+$likeMessage = $likeMessages->fetchAll();
+// $likesArray=[];
+// foreach($likeMessage as $likeArray){
+// 	$likesArray[]=$likeArray;
 
+// }
 
+if (isset($_REQUEST['like'])) {
+	$likesCount = $db->prepare('SELECT count(post_id) as likescount from (SELECT post_id FROM likes WHERE post_id=? AND member_id=? ) AS likepost');
+	$likesCount->execute(array(
+		$_REQUEST['like'],
+		$_SESSION['id']
+	));
+	$likeCount = $likesCount->fetch();
+	//いいね登録
+	if ((int)$likeCount['likescount'] === 0) {
+		$likeInsert = $db->prepare('INSERT INTO likes(post_id,member_id) VALUES (?,?)');
+		$likeInsert->execute(array(
+			$_REQUEST['like'],
+			$_SESSION['id']
+		));
+	}
+	//いいね削除
+	if ((int)$likeCount['likescount'] === 1) {
+		$likeDelete = $db->prepare('DELETE FROM likes WHERE post_id=? AND member_id=?');
+		$likeDelete->execute(array(
+			$_REQUEST['like'],
+			$_SESSION['id']
+		));
+	}
+	header('Location: index.php');
+	exit();
+
+}
 // htmlspecialcharsのショートカット
 function h($value)
 {
@@ -159,11 +195,19 @@ function makeLink($value)
 			<?php
 
 			foreach ($posts as $post) :
+				$like = 0;
+				for ($i = 0; $i < count($likeMessage); $i++) {
+					if ($likeMessage[$i]['post_id'] === $post['id']) {
+						$like = $post['id'];
+						break;
+					}
+				}
+
 
 			?>
 				<div class="msg">
 					<?php if ($post['retweet_post_id'] > 0) : ?>
-						<p><?php echo h($post['name']) ?>さんがリツイートしました。</p>
+						<p style="font-size:80%; color:blue;"><?php echo h($post['name']) ?>さんがリツイートしました。</p>
 					<?Php endif; ?>
 					<img src="member_picture/<?php echo h($post['picture']); ?>" width="48" height="48" alt="<?php echo h($post['name']); ?>" />
 					<p><?php echo makeLink(h($post['message'])); ?><span class="name">（<?php echo h($post['name']); ?>）</span>[<a href="index.php?res=<?php echo h($post['id']); ?>">Re</a>]
@@ -171,8 +215,12 @@ function makeLink($value)
 						<p class="rt"><a href="index.php?rt=<?php echo h($post['id']); ?>">RT<?php if ($post['retweet_post_id'] > 0) : ?><?php echo h($post['retweetcount']); ?>
 							<?Php endif; ?>
 							</a></p>
-							<p class="notlike"><a href="index.php?like=<?php $post['id']; ?>">♡:</a></p>
-							<p class="like"><a href="delete.php?like=<?php $post['id']; ?>">♡:</a></p>
+						<?php if ((int)$like === 0){ ?>
+							<p class="notlike" style="margin-left:52px;"><a href="index.php?like=<?php echo h($post['id']); ?>">&#9825;<?php echo h($post['likescount']) ?></a></p>
+						
+						<?php }else{ ?>
+							<p class="like" style="margin-left:52px; color:#F33;"><a href="index.php?like=<?php echo h($post['id']); ?>">&#9829;<?php echo h($post['likescount']) ?></a></p>
+						<?Php }; ?>
 						<?php
 						if ($post['reply_post_id'] > 0) :
 						?>

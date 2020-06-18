@@ -138,6 +138,16 @@ li {
 .msg p {
 	margin: 0;
 }
+.like{
+	margin-left: 10px;
+}
+.notlike{
+
+
+	margin-left: 10px;
+
+
+}
 .msg .day,
 .msg .day a {
 	font-size: 80%;
