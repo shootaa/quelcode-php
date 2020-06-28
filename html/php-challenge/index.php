@@ -66,28 +66,34 @@ if (isset($_REQUEST['rt'])) {
 		$_REQUEST['rt']
 	));
 	$retweetTable = $retweet->fetch();
-	//リツイートもボタンを押した投稿が、ログインしたユーザーがリツイートボタンを押したことがある場合
-	if ($retweetTable['member_id'] === $_SESSION['id'] && $retweetTable['retweetcount'] > 0) {
-		$retweetDelDo = $db->prepare('DELETE FROM posts WHERE id=? or retweet_post_id=?');
-		$retweetDelDo->execute(array(
-			$_REQUEST['rt'],
-			$_REQUEST['rt']
-		));
-		//元の投稿のリツイート数も減らす
-		$retweetDelCount = $db->prepare('UPDATE posts SET retweetcount=? WHERE id=? or retweet_post_id=?');
-		$retweetDelCount->execute(array(
-			$retweetTable['retweetcount'] - 1,
+	$retweetOrigin = $db->prepare('SELECT id,retweetcount from posts where id=?');
+	$retweetOrigin->execute(array(
+		$retweetTable['retweet_post_id']
+	));
+	$retweetOriginTable = $retweetOrigin->fetch();
+	if ($retweetTable['retweet_post_id'] > 0) {
+		//その投稿がリツイート
+		$retweetDelete = $db->prepare('SELECT id from posts where retweet_post_id=? and member_id=?');
+		$retweetDelete->execute(array(
 			$retweetTable['retweet_post_id'],
-			$retweetTable['retweet_post_id']
-
+			$_SESSION['id']
 		));
-
-		$retweetDelDone = $db->prepare('DELETE FROM posts WHERE retweet_post_id=?');
-		$retweetDelDone->execute(array(
-			$_REQUEST['rt'],
-		));
-	} else {
-		if ($retweetTable['retweet_post_id'] > 0) {
+		$retweetDeleteTable = $retweetDelete->fetch();
+		if ($retweetDeleteTable['id']) {
+			//その投稿のオリジナルを、自分もリツイートしたことがある場合
+			$retweetDelDo = $db->prepare('DELETE FROM posts WHERE member_id=? and id=?');
+			$retweetDelDo->execute(array(
+				$_SESSION['id'],
+				$retweetDeleteTable['id']
+			));
+			//元の投稿のリツイート数も減らす
+			$retweetDelCount = $db->prepare('UPDATE posts SET retweetcount=? WHERE id=? ');
+			$retweetDelCount->execute(array(
+				$retweetOriginTable['retweetcount'] - 1,
+				$retweetOriginTable['id']
+			));
+		} else {
+			//その投稿のオリジナルをリツイートしたことがない
 			$message = $db->prepare('INSERT INTO posts SET member_id=?, message=?,retweet_post_id=?, reply_post_id=?,created=NOW()');
 			$message->execute(array(
 				$_SESSION['id'],
@@ -95,11 +101,10 @@ if (isset($_REQUEST['rt'])) {
 				$retweetTable['retweet_post_id'],
 				$retweetTable['reply_post_id'],
 			));
-			$retweetIncrease = $db->prepare('UPDATE posts set retweetcount=? where id=? or retweet_post_id=?');
+			$retweetIncrease = $db->prepare('UPDATE posts set retweetcount=? where id=?');
 			$retweetIncrease->execute(array(
-				$retweetTable['retweetcount'] + 1,
+				$retweetOriginTable['retweetcount'] + 1,
 				$retweetTable['retweet_post_id'],
-				$retweetTable['retweet_post_id']
 			));
 			$retweetlikes = $db->prepare('SELECT id,member_id from posts where retweet_post_id=?');
 			$retweetlikes->execute(array(
@@ -111,8 +116,31 @@ if (isset($_REQUEST['rt'])) {
 			));
 			$retweetmember = $retweetmembers->fetch();
 			$retweetlike = $retweetlikes->fetch();
-		} else {
+		}
+	} else {
+		//その投稿はリツイートではない
+		$retweetDelete = $db->prepare('SELECT id from posts where retweet_post_id=? and member_id=?');
+		$retweetDelete->execute(array(
+			$retweetTable['id'],
+			$_SESSION['id']
+		));
+		$retweetDeleteTable = $retweetDelete->fetch();
+		if ($retweetDeleteTable['id']) {
+			//その投稿はリツイートしたオリジナルの投稿
+			$retweetDelDo = $db->prepare('DELETE FROM posts WHERE member_id=? and id=?');
+			$retweetDelDo->execute(array(
+				$_SESSION['id'],
+				$retweetDeleteTable['id']
+			));
+			//元の投稿のリツイート数も減らす
+			$retweetDelCount = $db->prepare('UPDATE posts SET retweetcount=? WHERE id=?');
+			$retweetDelCount->execute(array(
+				$retweetTable['retweetcount'] - 1,
+				$_REQUEST['rt']
 
+			));
+		} else {
+			//その投稿はリツイート数０の投稿
 			$message = $db->prepare('INSERT INTO posts SET member_id=?, message=?,retweet_post_id=?, reply_post_id=?,created=NOW()');
 			$message->execute(array(
 				$_SESSION['id'],
@@ -120,16 +148,20 @@ if (isset($_REQUEST['rt'])) {
 				$retweetTable['id'],
 				$retweetTable['reply_post_id'],
 			));
-			$retweetIncrease = $db->prepare('UPDATE posts set retweetcount=? where id=? or retweet_post_id=?');
+			$retweetIncrease = $db->prepare('UPDATE posts set retweetcount=? where id=?');
 			$retweetIncrease->execute(array(
 				$retweetTable['retweetcount'] + 1,
-				$retweetTable['id'],
-				$retweetTable['id'],
+				$_REQUEST['rt']
 			));
-			$retweetlikes = $db->prepare('SELECT id from posts where retweet_post_id=?');
+			$retweetlikes = $db->prepare('SELECT id,member_id from posts where retweet_post_id=?');
 			$retweetlikes->execute(array(
-				$retweetTable['id']
+				$retweetTable['retweet_post_id']
 			));
+			$retweetmembers = $db->prepare('SELECT member_id from posts where id=?');
+			$retweetmembers->execute(array(
+				$_REQUEST['rt']
+			));
+			$retweetmember = $retweetmembers->fetch();
 			$retweetlike = $retweetlikes->fetch();
 		}
 	}
@@ -269,11 +301,60 @@ function makeLink($value)
 						endif;
 						?>
 						<!-- リツイート -->
-						<?php if ((int) $post['retweetcount'] === 0) { ?>
-							<p class="rt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/retweet.png" alt="" style="width:20px;"></a><?php echo h($post['retweetcount']); ?></p>
-						<?php } else { ?>
-							<p class="afterrt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/after_retweet.png" alt="" style="width:20px;"></a><?php echo h($post['retweetcount']); ?></p>
-						<?php }; ?>
+						<?php
+						if ((int) $post['retweet_post_id'] > 0) {
+							$a = $db->prepare('SELECT id,retweetcount from posts where retweet_post_id=? and member_id=?');
+							$a->execute(array(
+								$post['retweet_post_id'],
+								$_SESSION['id']
+							));
+							$b = $a->fetch();
+							$retweetCount = $db->prepare('SELECT id,retweetcount from posts where id=?');
+							$retweetCount->execute(array(
+								$post['retweet_post_id']
+							));
+							$retweetCountTable = $retweetCount->fetch();
+							//リツイートされている
+							if ($post['member_id'] === $_SESSION['id']) {
+								//自分のリツイート
+						?>
+								<p class="afterrt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/after_retweet.png" alt="" style="width:20px;"></a><?php echo h($retweetCountTable['retweetcount']); ?></p>
+
+								<?php
+							} else {
+								//他のユーザーのリツイート
+								if ($b['id']) {
+									//その投稿のオリジナルを自分もリツイートしている
+								?>
+									<p class="afterrt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/after_retweet.png" alt="" style="width:20px;"></a><?php echo h($retweetCountTable['retweetcount']); ?></p>
+
+								<?php
+								} else {
+									//その投稿のオリジナルは自分はリツイートしていない
+
+								?>
+									<p class="rt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/retweet.png" alt="" style="width:20px;"></a><?php echo h($retweetCountTable['retweetcount']); ?></p>
+								<?php	}
+							}
+						} else {
+							$a = $db->prepare('SELECT id,retweetcount from posts where retweet_post_id=? and member_id=?');
+							$a->execute(array(
+								$post['id'],
+								$_SESSION['id']
+							));
+							$b = $a->fetch();
+							//リツイートされていない
+							if ($b) {
+								//リツイートのオリジナルの投稿
+								?>
+								<p class="afterrt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/after_retweet.png" alt="" style="width:20px;"></a><?php echo h($post['retweetcount']); ?></p>
+
+							<?php	} else {
+								//一度もリツイートされていない投稿
+							?>
+								<p class="rt" style="margin-left:50px; float:left;"><a href="index.php?rt=<?php echo h($post['id']); ?>"><img src="images/retweet.png" alt="" style="width:20px;"></a><?php echo h($post['retweetcount']); ?></p>
+						<?php	}
+						} ?>
 						<!-- いいね -->
 
 						<?php
