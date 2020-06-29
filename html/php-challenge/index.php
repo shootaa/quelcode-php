@@ -426,25 +426,28 @@ function makeLink($value)
 
 
 						<?php
-						if ($_SESSION['id'] == $post['member_id']) :
-							if($post['retweet_post_id']>0){
-								$retweetDelete =$db->prepare('SELECT member_id from posts where id=?');
-								$retweetDelete->execute(array(
-									$post['retweet_post_id']
-								));
-								$retweetDeleteTable =$retweetDelete->fetch();
-							if($retweetDeleteTable['member_id']===$_SESSION['id']){
+						$retweetDelete = $db->prepare('SELECT id,member_id from posts where id=?');
+						$retweetDelete->execute(array(
+							$post['retweet_post_id']
+						));
+						$retweetDeleteTable = $retweetDelete->fetch();
+						if ($post['retweet_post_id'] > 0) {
+							//リツイート
+							if ($_SESSION['id'] === $retweetDeleteTable['member_id']) {
 						?>
-
-							[<a href="delete.php?id=<?php echo h($post['id']); ?>" style="color: #F33; ">削除</a>]
-						<?php
-							}}else{
-								?>
-
 								[<a href="delete.php?id=<?php echo h($post['id']); ?>" style="color: #F33; ">削除</a>]
-						<?php 
+							<?php
+							}
+						} else {
+							//リツイートじゃない
+							if ($_SESSION['id'] === $post['member_id']) {
+							?>
+								[<a href="delete.php?id=<?php echo h($post['id']); ?>" style="color: #F33; ">削除</a>]
+						<?php
+							}
 						}
-					endif;?>
+
+						?>
 					</p>
 				</div>
 			<?php
